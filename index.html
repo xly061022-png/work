@@ -3,25 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>电子信息与物理学院本科生宿舍卫生安全检查系统</title>
+    <title>电子信息与物理学院本科生宿舍卫生安全检查系统（Supabase云同步版）</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
+    <!-- 引入 Supabase JS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="min-h-screen text-slate-800">
 
     <header class="bg-indigo-600 text-white shadow-md sticky top-0 z-50">
         <div class="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
-            <h1 class="text-sm sm:text-base font-bold flex items-center gap-2">
-                🏫 电子信息与物理学院本科生宿舍卫生安全检查系统
+            <h1 class="text-xs sm:text-base font-bold flex items-center gap-1 sm:gap-2">
+                🏫 电子信息与物理学院本科生宿舍卫生安全检查系统（云同步版）
             </h1>
             <div class="flex gap-2">
                 <button onclick="switchTab('inspect')" id="btn-inspect" class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium bg-indigo-700 text-white transition">现场打分</button>
-                <button onclick="switchTab('stats')" id="btn-stats" class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-indigo-100 hover:bg-indigo-500 transition">统计与查询</button>
+                <button onclick="switchTab('stats')" id="btn-stats" class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-indigo-100 hover:bg-indigo-500 transition">云端统计与查询</button>
             </div>
         </div>
     </header>
 
     <main class="max-w-4xl mx-auto px-4 py-6 space-y-6">
+        
+        <!-- 云端配置提示栏 -->
+        <div id="cloud-config-bar" class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+                <strong>💡 Supabase 云同步配置说明：</strong>当前未配置云端。若需所有人设备实时同步，请点击右侧填入您的免费 Supabase 项目凭证。
+            </div>
+            <button onclick="openConfigModal()" class="px-3 py-1.5 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 transition shrink-0">配置 Supabase 凭证</button>
+        </div>
+
         <div id="tab-inspect" class="space-y-6">
             <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 space-y-4">
                 <h2 class="text-base font-bold text-slate-700 flex items-center gap-2">📅 检查批次（周次）设置</h2>
@@ -146,7 +157,7 @@
                     </div>
                 </div>
                 <button onclick="submitInspection()" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-md transition text-sm">
-                    💾 保存并提交检查结果
+                    💾 保存并同步到 Supabase 云端
                 </button>
             </div>
         </div>
@@ -154,7 +165,7 @@
         <div id="tab-stats" class="hidden space-y-6">
             <div class="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 space-y-4">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <h2 class="text-base font-bold text-slate-700">📊 检查结果统计与查询</h2>
+                    <h2 class="text-base font-bold text-slate-700">📊 Supabase 云端检查结果实时查询</h2>
                     <div class="flex flex-wrap gap-2">
                         <select id="stat-filter-week" onchange="renderStatsTable()" class="rounded-xl border-slate-200 border px-3 py-2 text-xs bg-white font-medium">
                             <option value="">全部周次</option>
@@ -166,8 +177,8 @@
                             <option value="第16周">第16周</option><option value="第17周">第17周</option><option value="第18周">第18周</option>
                             <option value="第19周">第19周</option><option value="第20周">第20周</option>
                         </select>
+                        <button onclick="renderStatsTable()" class="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition">刷新云端数据</button>
                         <button onclick="exportCSV()" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition">导出 CSV 表格</button>
-                        <button onclick="clearAllData()" class="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold transition">清空所有记录</button>
                     </div>
                 </div>
                 <div class="overflow-x-auto">
@@ -191,6 +202,32 @@
         </div>
     </main>
 
+    <!-- 配置 Supabase 凭证弹窗 -->
+    <div id="config-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-xl text-xs">
+            <h3 class="text-base font-bold text-slate-800">⚙️ 配置 Supabase 云端凭证</h3>
+            <p class="text-slate-400">请前往 Supabase 免费创建一个项目，在 Project Settings -> API 中复制以下信息填入：</p>
+            <div class="space-y-3">
+                <div>
+                    <label class="block font-bold text-slate-600 mb-1">Supabase URL</label>
+                    <input type="text" id="cfg-supabaseurl" placeholder="例如: https://xyzcompany.supabase.co" class="w-full border rounded-xl px-3 py-2 outline-none">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-600 mb-1">Supabase Anon Key (公钥)</label>
+                    <input type="text" id="cfg-supabasekey" placeholder="例如: eyJhbGciOiJIUzI1Ni..." class="w-full border rounded-xl px-3 py-2 outline-none">
+                </div>
+            </div>
+            <div class="bg-slate-50 p-3 rounded-xl text-slate-500">
+                💡 提示：请在 Supabase 的 SQL Editor 中运行一次建表命令（见说明）。
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeConfigModal()" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold">取消</button>
+                <button onclick="saveSupabaseConfig()" class="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700">保存并连接</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 详情弹窗 -->
     <div id="detail-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-xl">
             <div class="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -204,6 +241,7 @@
         </div>
     </div>
 
+    <!-- 图片放大弹窗 -->
     <div id="image-modal" class="fixed inset-0 bg-black/80 hidden z-50 flex items-center justify-center p-4" onclick="closeImageModal()">
         <img id="modal-zoom-img" src="" class="max-w-full max-h-[90vh] rounded-2xl object-contain shadow-2xl">
     </div>
@@ -223,12 +261,51 @@
             "10、宿舍是否有异味"
         ];
 
+        let supabaseClient = null;
+
         window.onload = function() {
             document.getElementById('inspect-date').valueAsDate = new Date();
+            initSupabaseStorage();
             initCriteria();
             initGradeOptions();
             renderStatsTable();
         };
+
+        function initSupabaseStorage() {
+            const url = localStorage.getItem('sb_url');
+            const key = localStorage.getItem('sb_key');
+
+            if(url && key) {
+                try {
+                    supabaseClient = window.supabase.createClient(url, key);
+                    document.getElementById('cloud-config-bar').className = "bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-xs text-emerald-800 flex justify-between items-center";
+                    document.getElementById('cloud-config-bar').innerHTML = `<span>✅ Supabase 云端同步已连接成功！所有人设备实时共享。</span><button onclick="openConfigModal()" class="px-3 py-1 bg-emerald-600 text-white rounded-xl font-bold">修改凭证</button>`;
+                } catch(e) {
+                    console.error("Supabase init error:", e);
+                }
+            }
+        }
+
+        function openConfigModal() {
+            document.getElementById('cfg-supabaseurl').value = localStorage.getItem('sb_url') || '';
+            document.getElementById('cfg-supabasekey').value = localStorage.getItem('sb_key') || '';
+            document.getElementById('config-modal').classList.remove('hidden');
+        }
+
+        function closeConfigModal() {
+            document.getElementById('config-modal').classList.add('hidden');
+        }
+
+        function saveSupabaseConfig() {
+            const url = document.getElementById('cfg-supabaseurl').value.trim();
+            const key = document.getElementById('cfg-supabasekey').value.trim();
+            if(!url || !key) { alert("请完整填写两项凭证！"); return; }
+            localStorage.setItem('sb_url', url);
+            localStorage.setItem('sb_key', key);
+            alert("保存成功，正在初始化...");
+            closeConfigModal();
+            location.reload();
+        }
 
         function switchTab(tab) {
             if(tab === 'inspect') {
@@ -368,13 +445,14 @@
             }
         }
 
-        function submitInspection() {
+        async function submitInspection() {
             if(!currentSelectedDorm) { alert("请先完整选择年级、性别、楼栋和宿舍房间号！"); return; }
+            
             const record = {
-                id: Date.now(),
                 week: document.getElementById('inspect-week').value,
                 date: document.getElementById('inspect-date').value,
                 ...currentSelectedDorm,
+                gender: currentSelectedDorm.gender || '男',
                 totalScore: parseInt(document.getElementById('total-score-display').innerText),
                 gradeLevel: document.getElementById('score-grade-badge').innerText,
                 scores: criteriaList.reduce((acc, text, i) => ({...acc, [text]: document.getElementById(`score-${i}`).value}), {}),
@@ -385,17 +463,103 @@
                     { desc: document.getElementById('desc-3').value, img: document.getElementById('preview-d3-img').src || '' }
                 ]
             };
+
+            // 本地备份
             let history = JSON.parse(localStorage.getItem('dorm_inspections') || '[]');
             history = history.filter(item => !(item.week === record.week && item.building === record.building && item.dorm === record.dorm));
             history.unshift(record);
             localStorage.setItem('dorm_inspections', JSON.stringify(history));
-            alert("保存成功！");
+
+            if(supabaseClient) {
+                try {
+                    // 存储到 Supabase 的 dorm_inspections 表中
+                    const { error } = await supabaseClient
+                        .from('dorm_inspections')
+                        .insert([
+                            {
+                                week: record.week,
+                                date: record.date,
+                                grade: record.grade,
+                                campus: record.campus,
+                                building: record.building,
+                                dorm: record.dorm,
+                                gender: record.gender,
+                                class_name: record.className,
+                                total_score: record.totalScore,
+                                grade_level: record.gradeLevel,
+                                record_data: record // 完整 JSON 结构存入
+                            }
+                        ]);
+                    if (error) throw error;
+                    alert("保存成功并已实时同步至 Supabase 云端！");
+                } catch (error) {
+                    alert("本地保存成功，但 Supabase 云端同步失败：" + error.message);
+                }
+            } else {
+                alert("保存成功！（当前未配置 Supabase 凭证，仅保存在本设备）");
+            }
             switchTab('stats');
         }
 
-        function renderStatsTable() {
+        async function renderStatsTable() {
             const tbody = document.getElementById('stats-table-body');
             const filterWeek = document.getElementById('stat-filter-week').value;
+            
+            if(supabaseClient) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-400">正在从 Supabase 云端实时加载数据...</td></tr>`;
+                try {
+                    let query = supabaseClient.from('dorm_inspections').select('*').order('created_at', { ascending: false });
+                    if(filterWeek) {
+                        query = query.eq('week', filterWeek);
+                    }
+                    const { data, error } = await query.limit(500);
+                    if (error) throw error;
+
+                    if(!data || data.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-400">暂无云端检查记录</td></tr>`;
+                        return;
+                    }
+
+                    tbody.innerHTML = '';
+                    data.forEach(row => {
+                        let item = row.record_data || {
+                            week: row.week,
+                            grade: row.grade,
+                            campus: row.campus,
+                            building: row.building,
+                            dorm: row.dorm,
+                            gender: row.gender,
+                            className: row.class_name,
+                            totalScore: row.total_score,
+                            gradeLevel: row.grade_level,
+                            date: row.date
+                        };
+
+                        let badgeColor = "bg-emerald-100 text-emerald-800";
+                        if(item.gradeLevel === '良好') badgeColor = "bg-blue-100 text-blue-800";
+                        if(item.gradeLevel === '合格') badgeColor = "bg-amber-100 text-amber-800";
+                        if(item.gradeLevel === '不合格') badgeColor = "bg-rose-100 text-rose-800";
+
+                        tbody.innerHTML += `
+                            <tr class="hover:bg-slate-50/60 transition">
+                                <td class="p-3 font-bold text-slate-700">${item.week}</td>
+                                <td class="p-3 font-medium">${item.building} - ${item.dorm}</td>
+                                <td class="p-3">${item.gender || '男'}生</td>
+                                <td class="p-3">${item.className}</td>
+                                <td class="p-3 font-black text-indigo-600">${item.totalScore}分</td>
+                                <td class="p-3"><span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${badgeColor}">${item.gradeLevel}</span></td>
+                                <td class="p-3 text-slate-400">${item.date}</td>
+                                <td class="p-3"><button onclick='viewDetail(${JSON.stringify(item)})' class="text-indigo-600 hover:bg-indigo-50 font-bold text-xs bg-indigo-50/80 px-3 py-1.5 rounded-xl transition">查看详情与图片</button></td>
+                            </tr>
+                        `;
+                    });
+                    return;
+                } catch(err) {
+                    console.warn("Supabase 读取失败，回退到本地存储:", err);
+                }
+            }
+
+            // 本地回退读取
             let history = JSON.parse(localStorage.getItem('dorm_inspections') || '[]');
             if(filterWeek) history = history.filter(h => h.week === filterWeek);
             if(history.length === 0) {
@@ -449,7 +613,8 @@
             let history = JSON.parse(localStorage.getItem('dorm_inspections') || '[]');
             if(history.length === 0) { alert("暂无数据可导出！"); return; }
             let csv = '\uFEFF周次,年级,校区,楼栋,宿舍,性别,班级,检查总分,检查等级,检查日期\n';
-            history.forEach(h => { csv += `"${h.week}","${h.grade}","${h.campus}","${h.building}","${h.dorm}","${h.gender || '男'}","${h.className}","${h.totalScore}","${h.gradeLevel}","${h.date}"\n`; });
+            history.forEach(h => { csv += `"${h.week}","${h.grade}","${h.campus}","${h.building}","${h.dorm}","${h.gender || '男'}","${h.className}","${h.totalScore}","${h.gradeLevel}","${h.date}"
+`; });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
@@ -458,10 +623,10 @@
         }
 
         function clearAllData() {
-            if(confirm("确定要清空本地所有检查记录吗？此操作无法撤销。")) {
+            if(confirm("确定要清空本地所有检查记录吗？")) {
                 localStorage.removeItem('dorm_inspections');
                 renderStatsTable();
-                alert("已清空所有记录。");
+                alert("已清空。");
             }
         }
     </script>
