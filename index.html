@@ -43,10 +43,10 @@
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-semibold text-slate-500 mb-1">检查周次</label>
-                        <select id="inspect-week" class="w-full rounded-xl border-slate-200 border px-3 py-2.5 text-sm outline-none bg-slate-50">
-                            <option value="第1周" selected>第1周</option><option value="第2周">第2周</option><option value="第3周">第3周</option>
-                            <option value="第4周">第4周</option><option value="第5周">第5周</option><option value="第6周">第6周</option>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">检查周次 (根据日期自动推算)</label>
+                        <select id="inspect-week" class="w-full rounded-xl border-slate-200 border px-3 py-2.5 text-sm outline-none bg-slate-50 font-bold text-indigo-600">
+                            <option value="第1周">第1周</option><option value="第2周">第2周</option><option value="第3周">第3周</option>
+                            <option value="第4周">第4周</option><option value="第5周">第5周</option><option value="第6周" selected>第6周</option>
                             <option value="第7周">第7周</option><option value="第8周">第8周</option><option value="第9周">第9周</option>
                             <option value="第10周">第10周</option><option value="第11周">第11周</option><option value="第12周">第12周</option>
                             <option value="第13周">第13周</option><option value="第14周">第14周</option><option value="第15周">第15周</option>
@@ -56,7 +56,7 @@
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-500 mb-1">检查日期</label>
-                        <input type="date" id="inspect-date" class="w-full rounded-xl border-slate-200 border px-3 py-2.5 text-sm outline-none bg-slate-50">
+                        <input type="date" id="inspect-date" onchange="onInspectDateChange()" class="w-full rounded-xl border-slate-200 border px-3 py-2.5 text-sm outline-none bg-slate-50">
                     </div>
                 </div>
             </div>
@@ -161,6 +161,13 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- 检查人名字输入框 -->
+                <div class="bg-white rounded-2xl shadow-sm p-4 border border-slate-100">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">👤 检查人姓名 (必填)</label>
+                    <input type="text" id="inspector-name" placeholder="请输入本次检查人姓名" class="w-full rounded-xl border-slate-200 border px-3 py-2.5 text-sm outline-none bg-slate-50">
+                </div>
+
                 <div class="flex gap-3">
                     <button id="btn-cancel-edit" onclick="cancelEdit()" class="hidden w-1/3 py-3.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-2xl transition text-sm">取消修改</button>
                     <button id="btn-submit-inspection" onclick="submitInspection()" class="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-md transition text-sm">💾 保存并同步到 Supabase 云端</button>
@@ -198,6 +205,7 @@
                                 <th class="p-3">班级</th>
                                 <th class="p-3">总分</th>
                                 <th class="p-3">等级</th>
+                                <th class="p-3">检查人</th>
                                 <th class="p-3">日期</th>
                                 <th class="p-3">操作</th>
                             </tr>
@@ -214,14 +222,14 @@
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                         <h2 class="text-base font-bold text-slate-700 flex items-center gap-2">🔍 尚未打分检查的宿舍查询</h2>
-                        <p class="text-xs text-slate-400 mt-1">可按指定周次、年级及专业班级筛选出本周还未进行卫生检查的宿舍名单。</p>
+                        <p class="text-xs text-slate-400 mt-1">可按指定周次、年级、性别（男女）及专业班级筛选出本周还未进行卫生检查的宿舍名单。</p>
                     </div>
                     <div class="flex flex-wrap gap-2">
                         <div>
                             <label class="block text-[10px] font-semibold text-slate-400 mb-0.5">选择周次</label>
                             <select id="uninspected-filter-week" onchange="renderUninspectedTable()" class="rounded-xl border-slate-200 border px-3 py-2 text-xs bg-white font-medium">
-                                <option value="第1周" selected>第1周</option><option value="第2周">第2周</option><option value="第3周">第3周</option>
-                                <option value="第4周">第4周</option><option value="第5周">第5周</option><option value="第6周">第6周</option>
+                                <option value="第1周">第1周</option><option value="第2周">第2周</option><option value="第3周">第3周</option>
+                                <option value="第4周">第4周</option><option value="第5周">第5周</option><option value="第6周" selected>第6周</option>
                                 <option value="第7周">第7周</option><option value="第8周">第8周</option><option value="第9周">第9周</option>
                                 <option value="第10周">第10周</option><option value="第11周">第11周</option><option value="第12周">第12周</option>
                                 <option value="第13周">第13周</option><option value="第14周">第14周</option><option value="第15周">第15周</option>
@@ -236,8 +244,16 @@
                             </select>
                         </div>
                         <div>
+                            <label class="block text-[10px] font-semibold text-slate-400 mb-0.5">选择性别</label>
+                            <select id="uninspected-filter-gender" onchange="renderUninspectedTable()" class="rounded-xl border-slate-200 border px-3 py-2 text-xs bg-white font-medium">
+                                <option value="">全部性别</option>
+                                <option value="男">男生宿舍</option>
+                                <option value="女">女生宿舍</option>
+                            </select>
+                        </div>
+                        <div>
                             <label class="block text-[10px] font-semibold text-slate-400 mb-0.5">专业/班级关键词</label>
-                            <input type="text" id="uninspected-filter-class" placeholder="如: 电信1班 或 自动化" oninput="renderUninspectedTable()" class="rounded-xl border-slate-200 border px-3 py-2 text-xs bg-white outline-none w-36">
+                            <input type="text" id="uninspected-filter-class" placeholder="如: 电信1班" oninput="renderUninspectedTable()" class="rounded-xl border-slate-200 border px-3 py-2 text-xs bg-white outline-none w-28">
                         </div>
                     </div>
                 </div>
@@ -328,13 +344,36 @@
         let editingRecordId = null;
 
         window.onload = function() {
-            document.getElementById('inspect-date').valueAsDate = new Date();
+            const today = new Date();
+            document.getElementById('inspect-date').valueAsDate = today;
+            onInspectDateChange();
+
             initSupabaseStorage();
             initCriteria();
             initGradeOptions();
             renderStatsTable();
             initUninspectedGradeOptions();
+
+            const savedInspector = localStorage.getItem('last_inspector_name');
+            if(savedInspector) {
+                document.getElementById('inspector-name').value = savedInspector;
+            }
         };
+
+        // 核心：基准日 2026-10-12（周一）是第 6 周的起点
+        function onInspectDateChange() {
+            const dateVal = document.getElementById('inspect-date').value;
+            if(!dateVal) return;
+            const baseMondayW6 = new Date('2026-10-12'); // 第6周周一起点
+            const currDate = new Date(dateVal);
+            const diffTime = currDate - baseMondayW6;
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            const diffWeeks = Math.floor(diffDays / 7);
+            let weekNum = 6 + diffWeeks;
+            if(weekNum < 1) weekNum = 1;
+            if(weekNum > 20) weekNum = 20;
+            document.getElementById('inspect-week').value = `第${weekNum}周`;
+        }
 
         function initSupabaseStorage() {
             const url = localStorage.getItem('sb_url');
@@ -527,12 +566,16 @@
 
         async function submitInspection() {
             if(!currentSelectedDorm) { alert("请先完整选择年级、性别、楼栋和宿舍房间号！"); return; }
+            const inspectorName = document.getElementById('inspector-name').value.trim();
+            if(!inspectorName) { alert("请填写检查人姓名！"); return; }
+            localStorage.setItem('last_inspector_name', inspectorName);
             
             const record = {
                 week: document.getElementById('inspect-week').value,
                 date: document.getElementById('inspect-date').value,
                 ...currentSelectedDorm,
                 gender: currentSelectedDorm.gender || '男',
+                inspector: inspectorName,
                 totalScore: parseInt(document.getElementById('total-score-display').innerText),
                 gradeLevel: document.getElementById('score-grade-badge').innerText,
                 scores: criteriaList.reduce((acc, text, i) => ({...acc, [text]: document.getElementById(`score-${i}`).value}), {}),
@@ -633,6 +676,7 @@
             const tbody = document.getElementById('uninspected-table-body');
             const targetWeek = document.getElementById('uninspected-filter-week').value;
             const targetGrade = document.getElementById('uninspected-filter-grade').value;
+            const targetGender = document.getElementById('uninspected-filter-gender').value;
             const classKeyword = document.getElementById('uninspected-filter-class').value.trim().toLowerCase();
 
             tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400">正在对比云端数据计算未检宿舍...</td></tr>`;
@@ -648,6 +692,7 @@
             let uninspectedList = dormDatabase.filter(d => {
                 if(inspectedKeys.has(`${d.building}_${d.dorm}`)) return false;
                 if(targetGrade && d.grade !== targetGrade) return false;
+                if(targetGender && (d.gender || '男') !== targetGender) return false;
                 if(classKeyword && !d.className.toLowerCase().includes(classKeyword)) return false;
                 return true;
             });
@@ -694,6 +739,7 @@
         function exportUninspectedCSV() {
             const targetWeek = document.getElementById('uninspected-filter-week').value;
             const targetGrade = document.getElementById('uninspected-filter-grade').value;
+            const targetGender = document.getElementById('uninspected-filter-gender').value;
             const classKeyword = document.getElementById('uninspected-filter-class').value.trim().toLowerCase();
 
             getAllInspectionRecords().then(allRecords => {
@@ -707,13 +753,14 @@
                 let uninspectedList = dormDatabase.filter(d => {
                     if(inspectedKeys.has(`${d.building}_${d.dorm}`)) return false;
                     if(targetGrade && d.grade !== targetGrade) return false;
+                    if(targetGender && (d.gender || '男') !== targetGender) return false;
                     if(classKeyword && !d.className.toLowerCase().includes(classKeyword)) return false;
                     return true;
                 });
 
                 if(uninspectedList.length === 0) { alert("当前没有未检查宿舍可导出！"); return; }
 
-                let csv = '\uFEFF周次,年级,校区,楼栋,宿舍号,性别,班级\n';
+                let csv = '﻿周次,年级,校区,楼栋,宿舍号,性别,班级\n';
                 uninspectedList.forEach(d => {
                     csv += `"${targetWeek}","${d.grade}","${d.campus}","${d.building}","${d.dorm}","${d.gender || '男'}","${d.className}"\n`;
                 });
@@ -731,7 +778,7 @@
             const filterWeek = document.getElementById('stat-filter-week').value;
             
             if(supabaseClient) {
-                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-400">正在从 Supabase 云端实时加载数据...</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400">正在从 Supabase 云端实时加载数据...</td></tr>`;
                 try {
                     let query = supabaseClient.from('dorm_inspections').select('*').order('created_at', { ascending: false });
                     if(filterWeek) {
@@ -741,7 +788,7 @@
                     if (error) throw error;
 
                     if(!data || data.length === 0) {
-                        tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-400">暂无云端检查记录</td></tr>`;
+                        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400">暂无云端检查记录</td></tr>`;
                         return;
                     }
 
@@ -763,6 +810,7 @@
                                 <td class="p-3">${item.className}</td>
                                 <td class="p-3 font-black text-indigo-600">${item.totalScore}分</td>
                                 <td class="p-3"><span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${badgeColor}">${item.gradeLevel}</span></td>
+                                <td class="p-3 font-semibold text-slate-600">${item.inspector || '未填写'}</td>
                                 <td class="p-3 text-slate-400">${item.date}</td>
                                 <td class="p-3 space-x-1">
                                     <button onclick='viewDetailByRow(${JSON.stringify(item)}, ${row.id})' class="text-indigo-600 hover:bg-indigo-50 font-bold text-xs bg-indigo-50/80 px-2.5 py-1.5 rounded-xl transition">详情</button>
@@ -781,7 +829,7 @@
             let history = JSON.parse(localStorage.getItem('dorm_inspections') || '[]');
             if(filterWeek) history = history.filter(h => h.week === filterWeek);
             if(history.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-400">暂无检查记录</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400">暂无检查记录</td></tr>`;
                 return;
             }
             tbody.innerHTML = '';
@@ -799,6 +847,7 @@
                         <td class="p-3">${item.className}</td>
                         <td class="p-3 font-black text-indigo-600">${item.totalScore}分</td>
                         <td class="p-3"><span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${badgeColor}">${item.gradeLevel}</span></td>
+                        <td class="p-3 font-semibold text-slate-600">${item.inspector || '未填写'}</td>
                         <td class="p-3 text-slate-400">${item.date}</td>
                         <td class="p-3 space-x-1">
                             <button onclick='viewDetailByRow(${JSON.stringify(item)}, "${item.id}")' class="text-indigo-600 hover:bg-indigo-50 font-bold text-xs bg-indigo-50/80 px-2.5 py-1.5 rounded-xl transition">详情</button>
@@ -817,7 +866,7 @@
 
         function viewDetail(item) {
             document.getElementById('modal-title').innerText = `${item.week} - ${item.building} ${item.dorm} 检查详情`;
-            let html = `<div class="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-2xl border border-slate-100"><div><strong>年级性别：</strong>${item.grade} (${item.gender || '男'}生)</div><div><strong>检查日期：</strong>${item.date}</div><div><strong>检查总分：</strong><span class="text-indigo-600 font-bold">${item.totalScore}分</span></div><div><strong>评定等级：</strong>${item.gradeLevel}</div></div>`;
+            let html = `<div class="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-2xl border border-slate-100"><div><strong>年级性别：</strong>${item.grade} (${item.gender || '男'}生)</div><div><strong>检查人：</strong><span class="text-indigo-600 font-bold">${item.inspector || '未填写'}</span></div><div><strong>检查日期：</strong>${item.date}</div><div><strong>检查总分：</strong><span class="text-indigo-600 font-bold">${item.totalScore}分</span></div><div class="col-span-2"><strong>评定等级：</strong>${item.gradeLevel}</div></div>`;
             html += `<h4 class="font-bold text-xs text-slate-700 mt-3">10项评分明细：</h4><div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">`;
             for(let k in item.scores) {
                 html += `<div class="p-2 bg-slate-50 rounded-xl border border-slate-100 flex justify-between"><span>${k}</span><span class="font-bold text-indigo-600">${item.scores[k]}分</span></div>`;
@@ -838,6 +887,7 @@
             editingRecordId = rowId;
             document.getElementById('inspect-week').value = item.week;
             document.getElementById('inspect-date').value = item.date;
+            document.getElementById('inspector-name').value = item.inspector || '';
 
             document.getElementById('filter-grade').value = item.grade;
             updateGenderOptions();
@@ -928,15 +978,14 @@
         }
 
         function closeModal() { document.getElementById('detail-modal').classList.add('hidden'); }
-        function zoomImage(src) { document.getElementById('modal-zoom-img').src = src; document.getElementById('image-modal').classList.remove('hidden'); }
+        function zoomImage(src) { document.getElementById('modal-zoom-img').src = src; document.getElementById('image-modal').classList.add('hidden'); }
         function closeImageModal() { document.getElementById('image-modal').classList.add('hidden'); }
 
         function exportCSV() {
             let history = JSON.parse(localStorage.getItem('dorm_inspections') || '[]');
             if(history.length === 0) { alert("暂无数据可导出！"); return; }
-            let csv = '\uFEFF周次,年级,校区,楼栋,宿舍,性别,班级,检查总分,检查等级,检查日期\n';
-            history.forEach(h => { csv += `"${h.week}","${h.grade}","${h.campus}","${h.building}","${h.dorm}","${h.gender || '男'}","${h.className}","${h.totalScore}","${h.gradeLevel}","${h.date}"
-`; });
+            let csv = '\uFEFF周次,年级,校区,楼栋,宿舍,性别,班级,检查人,检查总分,检查等级,检查日期\n';
+            history.forEach(h => { csv += `"${h.week}","${h.grade}","${h.campus}","${h.building}","${h.dorm}","${h.gender || '男'}","${h.className}","${h.inspector || ''}","${h.totalScore}","${h.gradeLevel}","${h.date}"\n`; });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
