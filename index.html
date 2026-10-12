@@ -649,18 +649,36 @@
             switchTab('stats');
         }
 
+        // 修改1：减少单次获取的数据量
+        // 修改2：如果只需要部分字段，修改 select('*')，但在目前代码结构中，
+        // getAllInspectionRecords 既被用于统计表也被用于未检查询。
+        // 为了统计表能正常显示所有基本信息，我们请求必需的列，
+        // 关键是不请求 `record_data`，以避免巨大的 Base64 数据加载导致浏览器卡死。
         async function getAllInspectionRecords() {
             let records = [];
             if(supabaseClient) {
                 try {
-                    const { data, error } = await supabaseClient.from('dorm_inspections').select('*').limit(1000);
+                    // 不选择 record_data，只选择用于展示和逻辑判断的列
+                    const { data, error } = await supabaseClient
+                        .from('dorm_inspections')
+                        .select('id, week, date, grade, campus, building, dorm, gender, class_name, total_score, grade_level, created_at')
+                        .order('created_at', { ascending: false })
+                        .limit(50); // 调低加载上限，防止请求过大
+                        
                     if(!error && data) {
                         data.forEach(row => {
-                            if(row.record_data) records.push(row.record_data);
-                            else records.push({
-                                week: row.week, grade: row.grade, campus: row.campus,
-                                building: row.building, dorm: row.dorm, gender: row.gender,
-                                className: row.class_name
+                            records.push({
+                                id: row.id,
+                                week: row.week, 
+                                grade: row.grade, 
+                                campus: row.campus,
+                                building: row.building, 
+                                dorm: row.dorm, 
+                                gender: row.gender,
+                                className: row.class_name,
+                                totalScore: row.total_score,
+                                gradeLevel: row.grade_level,
+                                date: row.date
                             });
                         });
                         return records;
@@ -780,11 +798,17 @@
             if(supabaseClient) {
                 tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400">正在从 Supabase 云端实时加载数据...</td></tr>`;
                 try {
-                    let query = supabaseClient.from('dorm_inspections').select('*').order('created_at', { ascending: false });
+                    // 这里也不加载 record_data，并且减少 limit
+                    let query = supabaseClient.from('dorm_inspections')
+                        .select('id, week, date, grade, campus, building, dorm, gender, class_name, total_score, grade_level, created_at')
+                        .order('created_at', { ascending: false });
+                    
                     if(filterWeek) {
                         query = query.eq('week', filterWeek);
                     }
-                    const { data, error } = await query.limit(500);
+                    
+                    const { data, error } = await query.limit(50); // 调低上限
+
                     if (error) throw error;
 
                     if(!data || data.length === 0) {
@@ -794,8 +818,21 @@
 
                     tbody.innerHTML = '';
                     data.forEach(row => {
-                        let item = row.record_data || {};
-                        item.rowId = row.id;
+                        let item = {
+                            id: row.id,
+                            week: row.week, 
+                            grade: row.grade, 
+                            campus: row.campus,
+                            building: row.building, 
+                            dorm: row.dorm, 
+                            gender: row.gender,
+                            className: row.class_name,
+                            totalScore: row.total_score,
+                            gradeLevel: row.grade_level,
+                            date: row.date
+                            // 注意：这里没有 inspector 和照片信息了，如果需要在表格显示 inspector，
+                            // 需要在 supabase 表中单独添加 inspector 列，并在 select 中获取。
+                        };
 
                         let badgeColor = "bg-emerald-100 text-emerald-800";
                         if(item.gradeLevel === '良好') badgeColor = "bg-blue-100 text-blue-800";
@@ -813,8 +850,8 @@
                                 <td class="p-3 font-semibold text-slate-600">${item.inspector || '未填写'}</td>
                                 <td class="p-3 text-slate-400">${item.date}</td>
                                 <td class="p-3 space-x-1">
-                                    <button onclick='viewDetailByRow(${JSON.stringify(item)}, ${row.id})' class="text-indigo-600 hover:bg-indigo-50 font-bold text-xs bg-indigo-50/80 px-2.5 py-1.5 rounded-xl transition">详情</button>
-                                    <button onclick='editRecord(${JSON.stringify(item)}, ${row.id})' class="text-amber-600 hover:bg-amber-50 font-bold text-xs bg-amber-50/80 px-2.5 py-1.5 rounded-xl transition">编辑</button>
+                                    <button onclick='fetchAndviewDetail(${row.id})' class="text-indigo-600 hover:bg-indigo-50 font-bold text-xs bg-indigo-50/80 px-2.5 py-1.5 rounded-xl transition">详情</button>
+                                    <button onclick='fetchAndEditRecord(${row.id})' class="text-amber-600 hover:bg-amber-50 font-bold text-xs bg-amber-50/80 px-2.5 py-1.5 rounded-xl transition">编辑</button>
                                     <button onclick='deleteRecord(${row.id})' class="text-rose-600 hover:bg-rose-50 font-bold text-xs bg-rose-50/80 px-2.5 py-1.5 rounded-xl transition">删除</button>
                                 </td>
                             </tr>
@@ -859,9 +896,48 @@
             });
         }
 
+        // 修改3：点击详情或编辑时，再单独去请求那条记录的详细信息（包含照片）
+        async function fetchAndviewDetail(rowId) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('dorm_inspections')
+                    .select('record_data')
+                    .eq('id', rowId)
+                    .single();
+                
+                if (error) throw error;
+                if (data && data.record_data) {
+                    viewDetailByRow(data.record_data, rowId);
+                } else {
+                    alert("获取详情失败：记录为空");
+                }
+            } catch (err) {
+                 alert("获取详情失败：" + err.message);
+            }
+        }
+
+        async function fetchAndEditRecord(rowId) {
+             try {
+                const { data, error } = await supabaseClient
+                    .from('dorm_inspections')
+                    .select('record_data')
+                    .eq('id', rowId)
+                    .single();
+                
+                if (error) throw error;
+                if (data && data.record_data) {
+                    editRecord(data.record_data, rowId);
+                } else {
+                    alert("获取详情失败：记录为空");
+                }
+            } catch (err) {
+                 alert("获取详情失败：" + err.message);
+            }
+        }
+
         function viewDetailByRow(item, rowId) {
             viewDetail(item);
-            document.getElementById('modal-btn-edit').setAttribute('onclick', `closeModal(); editRecord(${JSON.stringify(item)}, ${rowId});`);
+            document.getElementById('modal-btn-edit').setAttribute('onclick', `closeModal(); fetchAndEditRecord(${rowId});`);
         }
 
         function viewDetail(item) {
@@ -978,7 +1054,7 @@
         }
 
         function closeModal() { document.getElementById('detail-modal').classList.add('hidden'); }
-        function zoomImage(src) { document.getElementById('modal-zoom-img').src = src; document.getElementById('image-modal').classList.add('hidden'); }
+        function zoomImage(src) { document.getElementById('modal-zoom-img').src = src; document.getElementById('image-modal').classList.remove('hidden'); }
         function closeImageModal() { document.getElementById('image-modal').classList.add('hidden'); }
 
         function exportCSV() {
