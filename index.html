@@ -191,6 +191,13 @@
                             <option value="第16周">第16周</option><option value="第17周">第17周</option><option value="第18周">第18周</option>
                             <option value="第19周">第19周</option><option value="第20周">第20周</option>
                         </select>
+                        <select id="stat-filter-level" onchange="renderStatsTable()" class="rounded-xl border-slate-200 border px-3 py-2 text-xs bg-white font-medium">
+                            <option value="">全部等级</option>
+                            <option value="优秀">优秀</option>
+                            <option value="良好">良好</option>
+                            <option value="合格">合格</option>
+                            <option value="不合格">不合格</option>
+                        </select>
                         <button onclick="renderStatsTable()" class="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition">刷新云端数据</button>
                         <button onclick="exportCSV()" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition">导出 CSV 表格</button>
                     </div>
@@ -654,7 +661,6 @@
             let records = [];
             if(supabaseClient) {
                 try {
-                    // 这里加入 inspector 提取
                     const { data, error } = await supabaseClient
                         .from('dorm_inspections')
                         .select('id, week, date, grade, campus, building, dorm, gender, class_name, total_score, grade_level, created_at, inspector:record_data->>inspector')
@@ -791,6 +797,7 @@
         async function renderStatsTable() {
             const tbody = document.getElementById('stats-table-body');
             const filterWeek = document.getElementById('stat-filter-week').value;
+            const filterLevel = document.getElementById('stat-filter-level').value;
             
             if(supabaseClient) {
                 tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400">正在从 Supabase 云端实时加载数据...</td></tr>`;
@@ -801,6 +808,9 @@
                     
                     if(filterWeek) {
                         query = query.eq('week', filterWeek);
+                    }
+                    if(filterLevel) {
+                        query = query.eq('grade_level', filterLevel);
                     }
                     
                     const { data, error } = await query.limit(50);
@@ -860,6 +870,8 @@
 
             let history = JSON.parse(localStorage.getItem('dorm_inspections') || '[]');
             if(filterWeek) history = history.filter(h => h.week === filterWeek);
+            if(filterLevel) history = history.filter(h => h.gradeLevel === filterLevel);
+
             if(history.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400">暂无检查记录</td></tr>`;
                 return;
@@ -1051,21 +1063,23 @@
         function zoomImage(src) { document.getElementById('modal-zoom-img').src = src; document.getElementById('image-modal').classList.remove('hidden'); }
         function closeImageModal() { document.getElementById('image-modal').classList.add('hidden'); }
 
-        // ====== 彻底修复和更新的 CSV 导出函数 ======
         async function exportCSV() {
             let exportData = [];
             const filterWeek = document.getElementById('stat-filter-week').value;
+            const filterLevel = document.getElementById('stat-filter-level').value;
 
             // 1. 如果已连接，优先从 Supabase 获取数据
             if (supabaseClient) {
                 try {
-                    // 只选取必要的文本字段，用 ->> 提取 inspector，排除图片数据
                     let query = supabaseClient.from('dorm_inspections')
                         .select('week, date, grade, campus, building, dorm, gender, class_name, total_score, grade_level, inspector:record_data->>inspector')
                         .order('created_at', { ascending: false });
                     
                     if (filterWeek) {
                         query = query.eq('week', filterWeek);
+                    }
+                    if (filterLevel) {
+                        query = query.eq('grade_level', filterLevel);
                     }
                     
                     const { data, error } = await query.limit(2000);
@@ -1097,6 +1111,9 @@
                 if (filterWeek) {
                     exportData = exportData.filter(h => h.week === filterWeek);
                 }
+                if (filterLevel) {
+                    exportData = exportData.filter(h => h.gradeLevel === filterLevel);
+                }
             }
 
             if (exportData.length === 0) {
@@ -1114,7 +1131,11 @@
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
-            let fileName = filterWeek ? `宿舍检查统计_${filterWeek}` : `宿舍检查统计_全部`;
+            
+            let fileName = '宿舍检查统计';
+            if(filterWeek) fileName += `_${filterWeek}`;
+            if(filterLevel) fileName += `_${filterLevel}`;
+            
             link.download = `${fileName}_${new Date().toISOString().slice(0,10)}.csv`;
             link.click();
         }
