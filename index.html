@@ -360,7 +360,6 @@
             }
         };
 
-        // 核心：基准日 2026-10-12（周一）是第 6 周的起点
         function onInspectDateChange() {
             const dateVal = document.getElementById('inspect-date').value;
             if(!dateVal) return;
@@ -649,21 +648,16 @@
             switchTab('stats');
         }
 
-        // 修改1：减少单次获取的数据量
-        // 修改2：如果只需要部分字段，修改 select('*')，但在目前代码结构中，
-        // getAllInspectionRecords 既被用于统计表也被用于未检查询。
-        // 为了统计表能正常显示所有基本信息，我们请求必需的列，
-        // 关键是不请求 `record_data`，以避免巨大的 Base64 数据加载导致浏览器卡死。
         async function getAllInspectionRecords() {
             let records = [];
             if(supabaseClient) {
                 try {
-                    // 不选择 record_data，只选择用于展示和逻辑判断的列
+                    // 这里加入 inspector 提取
                     const { data, error } = await supabaseClient
                         .from('dorm_inspections')
-                        .select('id, week, date, grade, campus, building, dorm, gender, class_name, total_score, grade_level, created_at')
+                        .select('id, week, date, grade, campus, building, dorm, gender, class_name, total_score, grade_level, created_at, inspector:record_data->>inspector')
                         .order('created_at', { ascending: false })
-                        .limit(50); // 调低加载上限，防止请求过大
+                        .limit(50);
                         
                     if(!error && data) {
                         data.forEach(row => {
@@ -678,7 +672,8 @@
                                 className: row.class_name,
                                 totalScore: row.total_score,
                                 gradeLevel: row.grade_level,
-                                date: row.date
+                                date: row.date,
+                                inspector: row.inspector
                             });
                         });
                         return records;
@@ -778,7 +773,7 @@
 
                 if(uninspectedList.length === 0) { alert("当前没有未检查宿舍可导出！"); return; }
 
-                let csv = '﻿周次,年级,校区,楼栋,宿舍号,性别,班级\n';
+                let csv = '\uFEFF周次,年级,校区,楼栋,宿舍号,性别,班级\n';
                 uninspectedList.forEach(d => {
                     csv += `"${targetWeek}","${d.grade}","${d.campus}","${d.building}","${d.dorm}","${d.gender || '男'}","${d.className}"\n`;
                 });
@@ -798,16 +793,15 @@
             if(supabaseClient) {
                 tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-400">正在从 Supabase 云端实时加载数据...</td></tr>`;
                 try {
-                    // 这里也不加载 record_data，并且减少 limit
                     let query = supabaseClient.from('dorm_inspections')
-                        .select('id, week, date, grade, campus, building, dorm, gender, class_name, total_score, grade_level, created_at')
+                        .select('id, week, date, grade, campus, building, dorm, gender, class_name, total_score, grade_level, created_at, inspector:record_data->>inspector')
                         .order('created_at', { ascending: false });
                     
                     if(filterWeek) {
                         query = query.eq('week', filterWeek);
                     }
                     
-                    const { data, error } = await query.limit(50); // 调低上限
+                    const { data, error } = await query.limit(50);
 
                     if (error) throw error;
 
@@ -829,9 +823,8 @@
                             className: row.class_name,
                             totalScore: row.total_score,
                             gradeLevel: row.grade_level,
-                            date: row.date
-                            // 注意：这里没有 inspector 和照片信息了，如果需要在表格显示 inspector，
-                            // 需要在 supabase 表中单独添加 inspector 列，并在 select 中获取。
+                            date: row.date,
+                            inspector: row.inspector
                         };
 
                         let badgeColor = "bg-emerald-100 text-emerald-800";
@@ -896,7 +889,6 @@
             });
         }
 
-        // 修改3：点击详情或编辑时，再单独去请求那条记录的详细信息（包含照片）
         async function fetchAndviewDetail(rowId) {
             try {
                 const { data, error } = await supabaseClient
@@ -1057,17 +1049,74 @@
         function zoomImage(src) { document.getElementById('modal-zoom-img').src = src; document.getElementById('image-modal').classList.remove('hidden'); }
         function closeImageModal() { document.getElementById('image-modal').classList.add('hidden'); }
 
-        function exportCSV() {
-            let history = JSON.parse(localStorage.getItem('dorm_inspections') || '[]');
-            if(history.length === 0) { alert("暂无数据可导出！"); return; }
+        // ====== 彻底修复和更新的 CSV 导出函数 ======
+        async function exportCSV() {
+            let exportData = [];
+            const filterWeek = document.getElementById('stat-filter-week').value;
+
+            // 1. 如果已连接，优先从 Supabase 获取数据
+            if (supabaseClient) {
+                try {
+                    // 只选取必要的文本字段，用 ->> 提取 inspector，排除图片数据
+                    let query = supabaseClient.from('dorm_inspections')
+                        .select('week, date, grade, campus, building, dorm, gender, class_name, total_score, grade_level, inspector:record_data->>inspector')
+                        .order('created_at', { ascending: false });
+                    
+                    if (filterWeek) {
+                        query = query.eq('week', filterWeek);
+                    }
+                    
+                    const { data, error } = await query.limit(2000);
+                    if (error) throw error;
+
+                    if (data && data.length > 0) {
+                        exportData = data.map(row => ({
+                            week: row.week,
+                            grade: row.grade,
+                            campus: row.campus,
+                            building: row.building,
+                            dorm: row.dorm,
+                            gender: row.gender,
+                            className: row.class_name,
+                            inspector: row.inspector,
+                            totalScore: row.total_score,
+                            gradeLevel: row.grade_level,
+                            date: row.date
+                        }));
+                    }
+                } catch (err) {
+                    console.warn("Supabase 导出失败，将尝试导出本地数据:", err);
+                }
+            }
+
+            // 2. 如果云端没有获取到，尝试从本地缓存获取
+            if (exportData.length === 0) {
+                exportData = JSON.parse(localStorage.getItem('dorm_inspections') || '[]');
+                if (filterWeek) {
+                    exportData = exportData.filter(h => h.week === filterWeek);
+                }
+            }
+
+            if (exportData.length === 0) {
+                alert("当前条件暂无数据可导出！");
+                return;
+            }
+
+            // 3. 生成 CSV 内容，加入 inspector（检查人）列
             let csv = '\uFEFF周次,年级,校区,楼栋,宿舍,性别,班级,检查人,检查总分,检查等级,检查日期\n';
-            history.forEach(h => { csv += `"${h.week}","${h.grade}","${h.campus}","${h.building}","${h.dorm}","${h.gender || '男'}","${h.className}","${h.inspector || ''}","${h.totalScore}","${h.gradeLevel}","${h.date}"\n`; });
+            exportData.forEach(h => {
+                csv += `"${h.week || ''}","${h.grade || ''}","${h.campus || ''}","${h.building || ''}","${h.dorm || ''}","${h.gender || '男'}","${h.className || ''}","${h.inspector || ''}","${h.totalScore || ''}","${h.gradeLevel || ''}","${h.date || ''}"\n`;
+            });
+
+            // 4. 触发下载
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
-            link.download = `电子信息与物理学院本科生宿舍检查统计_${new Date().toISOString().slice(0,10)}.csv`;
+            let fileName = filterWeek ? `宿舍检查统计_${filterWeek}` : `宿舍检查统计_全部`;
+            link.download = `${fileName}_${new Date().toISOString().slice(0,10)}.csv`;
             link.click();
         }
+
     </script>
 </body>
 </html>
