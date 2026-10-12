@@ -868,7 +868,7 @@ const dormDatabase = [
     "campus": "东园",
     "building": "DY04（原25栋）",
     "dorm": "2-602B",
-    "gender": "女",
+    "gender": "男",
     "className": "2023电子信息工程2班"
   },
   {
